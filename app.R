@@ -72,7 +72,8 @@ ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="d
                            tags$hr(),
                            selectInput("SelectShape", "Do you want to use as Mask the:", choices = c("First Shape", "Second Shape", "My own mask"), selected = "Second Shape"), #Choose the level of mask
                            tags$hr(),
-                           fileInput("Mascara", label = "Select the file you will use as Mask",  multiple = TRUE, accept = c(".rds",".shp", '.dbf',".sbn", ".sbx", ".shx", ".prj")), #Select Mask
+                           #fileInput("Mascara", label = "Choose a file as Mask",  multiple = TRUE, accept = c(".rds",".shp", '.dbf',".sbn", ".sbx", ".shx", ".prj")), #Select Mask
+                           actionButton("Mk","Choose a file as Mask"),
                            actionButton("cutRaster", "Apply Cut") #Apply cut of raster
                          ), #End of SideBarPanel 1.0.A
                          mainPanel(#Outputs of the first tab (data from CHIRPS)
@@ -81,7 +82,7 @@ ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="d
                            plotOutput("PlotSHP", width = "100%"), #Plot first shape
                            DT::dataTableOutput("MyTableSHP"), #Table of data shape
                            plotOutput("PlotSHP2", width = "100%"), #PLot the second shape
-                           verbatimTextOutput("MaskLoaded") #Information of mask
+                           verbatimTextOutput("MaskLoadedInf") #Information of mask
                          ) #End of MainPanel 1.0.A
                          ),#End of TabPanel 1.0.A
                 ##### 1.0.B. DOWNLOAD TEMPERATURES 30SEC (1km2) #####
@@ -423,53 +424,57 @@ server = function(input,output, session){
   output$PlotSHP2 = renderPlot({plot(SHP2())})
   #--------------------------------------#
   #Apply cut to Raster
-  inFile = reactive({
-    Maskara = input$Mascara
-    if(is.null(Maskara)){return(NULL)}
-    else if(input$SelectShape == "First Shape" || input$SelectShape == "Second Shape"){
-      ChoosedShape = readRDS(Maskara$datapath)
-      return(ChoosedShape)}
-    else if (input$SelectShape == "My own mask"){
-      ChoosedShape = read.shp(Maskara$datapath)
-      return(ChoosedShape)}
-    else{ChoosedShape = "Try again"}
+  inFile = eventReactive(input$Mk,{
+    #choose.dir()
+    Maskara = readRDS(file.choose())
+    #if(is.null(Maskara)){return(NULL)}
+    #if(input$SelectShape == "First Shape"){
+    #  ChoosedShape = readRDS(file.choose())
+    #}
+    #else if(input$SelectShape == "Second Shape"){
+    #  ChoosedShape = readRDS(file.choose())
+    #}
+    #else if (input$SelectShape == "My own mask"){
+    #  ChoosedShape = readOGR(file.choose())
+    #  }
+    #else{ChoosedShape = "Not uploaded"}
     })  
-  output$MaskLoaded = renderPrint({
-    inFile()
+  output$MaskLoadedInf = renderPrint({
+    print(inFile())
   })
   #--------------------------------------#
-  observeEvent(input$cutRaster,{
-    RasterDir = choose.dir()
-    RasterFiles = list.files(RasterDir, pattern = "\\.tif$")
-    RasterFiles2 = paste(RasterDir,"\\",RasterFiles, sep="")
-    RasterFiles2 = gsub("\\","/", RasterFiles2, fixed=TRUE)
-    PathFile = input$Mascara
-    mask = readRDS(PathFile$datapath)
-    Seleccion = input$SelectShape
-    WrittenName = gsub("\\.tif$","_",RasterFiles2)
-    withProgress(message = "Cutting",value = 0,{ #Begin BarProgress
-    for(i in 1:length(RasterFiles2)){
-      if(Seleccion == "First Shape"){
-        writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask), filename = paste(WrittenName[i],"Cutted", i, ".tif" ,sep=""), overwrite=TRUE ) 
-        incProgress(1/length(RasterFiles2), detail = paste(i))
-        Sys.sleep(0.1)
-        }else if (paste(Seleccion) == "Second Shape"){
-          if(as.numeric(paste(input$subLevel))==1){
-           writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_1 == paste(input$Region),]), filename = paste(WrittenName[i],"Cutted", ".tif" ,sep=""),overwrite=TRUE)
-            incProgress(1/length(RasterFiles2), detail = paste(i))
-            Sys.sleep(0.1)
-            }#end of if 
-          else{
-            writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_2 == paste(input$Region),]),filename = paste(WrittenName[i],"Cutted", ".tif" ,sep=""),overwrite=TRUE)
-            incProgress(1/length(RasterFiles2), detail = paste(i))
-            Sys.sleep(0.1)
-            }#end of else
-        }else{
-          print("Select any option")
-        }#end of else	
-    }#End of for bucle
-      })#end of BarProgress
-  }) 
+  #observeEvent(input$cutRaster,{
+  #  RasterDir = choose.dir()
+  #  RasterFiles = list.files(RasterDir, pattern = "\\.tif$")
+  #  RasterFiles2 = paste(RasterDir,"\\",RasterFiles, sep="")
+  #  RasterFiles2 = gsub("\\","/", RasterFiles2, fixed=TRUE)
+    #PathFile = input$Mascara
+    #mask = readRDS(PathFile$datapath)
+  #  Seleccion = input$SelectShape
+  #  WrittenName = gsub("\\.tif$","_",RasterFiles2)
+  #  withProgress(message = "Cutting",value = 0,{ #Begin BarProgress
+  #  for(i in 1:length(RasterFiles2)){
+  #    if(Seleccion == "First Shape"){
+  #      writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask), filename = paste(WrittenName[i],"Cutted", i, ".tif" ,sep=""), overwrite=TRUE ) 
+  #      incProgress(1/length(RasterFiles2), detail = paste(i))
+  #      Sys.sleep(0.1)
+  #      }else if (paste(Seleccion) == "Second Shape"){
+  #        if(as.numeric(paste(input$subLevel))==1){
+  #         writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_1 == paste(input$Region),]), filename = paste(WrittenName[i],"Cutted", ".tif" ,sep=""),overwrite=TRUE)
+  #          incProgress(1/length(RasterFiles2), detail = paste(i))
+  #          Sys.sleep(0.1)
+  #          }#end of if 
+  #        else{
+  #          writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_2 == paste(input$Region),]),filename = paste(WrittenName[i],"Cutted", ".tif" ,sep=""),overwrite=TRUE)
+  #          incProgress(1/length(RasterFiles2), detail = paste(i))
+  #          Sys.sleep(0.1)
+  #          }#end of else
+  #      }else{
+  #        print("Select any option")
+  #      }#end of else	
+  #  }#End of for bucle
+  #    })#end of BarProgress
+  #}) 
   ##### 1.0.B. FUNCTIONS OF FIRST TAB -B #####
   #--------------------------------------#
   # Download data from FLDASNOHA01
