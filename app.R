@@ -90,18 +90,11 @@ ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="d
                          sidebarPanel(width=4, #Width of sidebar, Control Panel
                                       tags$h4("Download Temperatures"),
                                       tags$hr(),
-                                      tags$strong(tags$p("Select date range:")),
                                       tags$br(),
-                                      tags$hr(),
-                                      tags$hr(),
-                                      dateInput("Date01", label = 'Start Date: yyyy-mm-dd',value = Sys.Date()-120), #Start date
-                                      dateInput("Date02", label = 'End Date: yyyy-mm-dd',value = Sys.Date()-1), #End date
-                                      actionButton("iniciar", "Download"),
-                                      tags$p("If you can not download the Temperatures dataset: ",tags$strong(tags$a(href="https://drive.google.com/open?id=1m1NSq2uJXgdNelyqBwd0aeRg2jj1HsRD", "Go here! "))),
+                                      tags$p("Temperatures dataset - FLDAS_NOAH01_C_GL_M_v001 Model: ",tags$strong(tags$a(href="https://drive.google.com/open?id=1m1NSq2uJXgdNelyqBwd0aeRg2jj1HsRD", "Download data from Google Drive "))),
                                       tags$br(),
-                                    
+                                      tags$p("Temperatures dataset: - FLDAS_NOAH01_C_GL_M_v001 Model:",tags$strong(tags$a(href="https://www.amazon.es/clouddrive/share/PhEDZGXVqrLdbKWERxqoW6j971ka8HSlBcPz1k9OPJ2", "Download data from Amazon Drive "))),
                                       tags$hr(),
-                                      tags$h4("Cut CHIRPs"),
                                       textInput("Countries", "Please enter the ISO 3166 country code to download the file :","COL"), #Countrie codes
                                       selectInput("Level_", "Select Level", choices = c(0,1,2), selected = 2), #Level of administrative division
                                       tags$p("The level refers to administrative divisions. Level 2 is the most specific"),
@@ -113,9 +106,9 @@ ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="d
                                       selectInput("subLevel_", "Select the level that corresponds to territorial entity", choices = c(1,2), selected = 2), #Select sublevel of administrative division
                                       actionButton("adquireSHP2_", "Plot second Shp"), #Plot sublevel of administrative division
                                       tags$hr(),
-                                      selectInput("SelectShape_", "Do you want to use as Mask the:", choices = c("First Shape", "Second Shape", "My own mask"), selected = "Second Shape"), #Choose the level of mask
+                                      selectInput("SelectShape_T", "Do you want to use as Mask the:", choices = c("First Shape", "Second Shape", "My own mask"), selected = "Second Shape"), #Choose the level of mask
                                       tags$hr(),
-                                      fileInput("Mascara_", label = "Select the file you will use as Mask",  multiple = TRUE, accept = c(".rds",".shp", '.dbf',".sbn", ".sbx", ".shx", ".prj")), #Select Mask
+                                      actionButton("Mascara_T", label = "Choose file as Mask"), #Select Mask
                                       actionButton("cutRaster_", "Apply Cut") #Apply cut of raster
                          ), #End of SideBarPanel 1.0.B
                          mainPanel(#Outputs of the first tab (data from CHIRPS)
@@ -478,23 +471,6 @@ server = function(input,output, session){
   }) 
   ##### 1.0.B. FUNCTIONS OF FIRST TAB -B #####
   #--------------------------------------#
-  # Download data from FLDASNOHA01
-  observeEvent(input$iniciar, {
-    source("Scripts/GetTempData.R")
-    #Direc = setwd(chartr("\\","/", choose.dir()))
-    Direc = choose.dir()
-    Desc = MyDataTemp(input$Date01, input$Date02)
-    MyDates = seq(as.Date(input$Date01), as.Date(input$Date02), by="month")
-    withProgress(message = "Downloading Temp.", value=0,{ #Begin BarProgress
-      for(i in 1:nrow(Desc)){
-        #download.file(paste(Desc[i,1]), destfile = paste(input$Regions, input$TResolution, MyDates[i],".tif.gz", sep=""), method = "auto")
-        drive_download(paste(Desc[i,1]), path = paste(Direc,"/","Temperature",MyDates[i],".tif"))
-        incProgress(1/nrow(Desc), detail = paste((i/nrow(Desc))*100),"%")
-        Sys.sleep(0.1)
-      }
-    })#end of BarProgress
-  })
-  #--------------------------------------#
   # Add a shapefile as mask
   # Display countries code
   DataCountriesSHP = reactive({
@@ -527,19 +503,21 @@ server = function(input,output, session){
   output$PlotSHP2_ = renderPlot({plot(SHP2_())})
   #--------------------------------------#
   #Apply cut to Raster
-  inFile_ = reactive({
-    Maskara = input$Mascara_
-    if(is.null(Maskara)){return(NULL)}
-    else if(input$SelectShape_ == "First Shape" || input$SelectShape_ == "Second Shape"){
-      ChoosedShape = readRDS(Maskara$datapath)
-      return(ChoosedShape)}
-    else if (input$SelectShape_ == "My own mask"){
-      ChoosedShape = read.shp(Maskara$datapath)
-      return(ChoosedShape)}
-    else{ChoosedShape = "Try again"}
+  inFile_T = eventReactive(input$Mascara_T,{
+    if(input$SelectShape_T == "First Shape"){
+      ChoosedShape = readRDS(file.choose())
+    }
+    else if(input$SelectShape_T == "Second Shape"){
+      ChoosedShape = readRDS(file.choose())
+    }
+    else if (input$SelectShape_T == "My own mask"){
+      ChoosedShape = readOGR(file.choose())
+    }
+    else{ChoosedShape = "Not uploaded"}
   })  
+  
   output$MaskLoaded_ = renderPrint({
-    inFile_()
+    inFile_T()
   })
   
   #--------------------------------------#
@@ -548,29 +526,31 @@ server = function(input,output, session){
     RasterFiles = list.files(RasterDir, pattern = "\\.tif$")
     RasterFiles2 = paste(RasterDir,"\\",RasterFiles, sep="")
     RasterFiles2 = gsub("\\","/", RasterFiles2, fixed=TRUE)
-    PathFile = input$Mascara_
-    mask = readRDS(PathFile$datapath)
-    Seleccion = input$SelectShape_
+    mask = inFile_T()
+    Seleccion = input$SelectShape_T
     WrittenName = gsub("\\.tif$","_",RasterFiles2)
-    withProgress(message = "Cutting",value = 0,{ #Begin BarProgress
+    withProgress(message = "Cropping",value = 0,{ #Begin BarProgress
       for(i in 1:length(RasterFiles2)){
         if(Seleccion == "First Shape"){
-          writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask), filename = paste(WrittenName[i],"Cutted", i, ".tif" ,sep=""), overwrite=TRUE ) 
+          writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask), filename = paste(WrittenName[i],"Cropped_T", i, ".tif" ,sep=""), overwrite=TRUE ) 
           incProgress(1/length(RasterFiles2), detail = paste(i))
           Sys.sleep(0.1)
         }else if (paste(Seleccion) == "Second Shape"){
           if(as.numeric(paste(input$subLevel_))==1){
-            writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_1 == paste(input$Region_),]), filename = paste(WrittenName[i],"Cutted", ".tif" ,sep=""),overwrite=TRUE)
+            writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_1 == paste(input$Region_),]), filename = paste(WrittenName[i],"Cropped_T", ".tif" ,sep=""),overwrite=TRUE)
             incProgress(1/length(RasterFiles2), detail = paste(i))
             Sys.sleep(0.1)
           }#end of if 
           else{
-            writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_2 == paste(input$Region_),]),filename = paste(WrittenName[i],"Cutted", ".tif" ,sep=""),overwrite=TRUE)
+            writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_2 == paste(input$Region_),]),filename = paste(WrittenName[i],"Cropped_T", ".tif" ,sep=""),overwrite=TRUE)
             incProgress(1/length(RasterFiles2), detail = paste(i))
             Sys.sleep(0.1)
           }#end of else
         }else{
-          print("Select any option")
+          writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask), filename = paste(WrittenName[i],"Cropped_T", ".tif" ,sep=""),overwrite=TRUE)
+          incProgress(1/length(RasterFiles2), detail = paste(i))
+          Sys.sleep(0.1)
+          
         }#end of else	
       }#End of for bucle
     })#end of BarProgress
