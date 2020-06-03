@@ -85,15 +85,17 @@ ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="d
                            verbatimTextOutput("MaskLoadedInf") #Information of mask
                          ) #End of MainPanel 1.0.A
                          ),#End of TabPanel 1.0.A
-                ##### 1.0.B. DOWNLOAD TEMPERATURES 30SEC (1km2) #####
-                tabPanel("GetTemperatures", 
+                ##### 1.0.B. DOWNLOAD TEMPERATURES (1km2) AND SOIL MOISTURE (1km2)#####
+                tabPanel("GetTempSoilM", 
                          sidebarPanel(width=4, #Width of sidebar, Control Panel
-                                      tags$h4("Download Temperatures"),
+                                      tags$h4("Download Temperature and Soil Moisture dataset"),
                                       tags$hr(),
                                       tags$br(),
                                       tags$p("Temperatures dataset - FLDAS_NOAH01_C_GL_M_v001 Model: ",tags$strong(tags$a(href="https://drive.google.com/open?id=1m1NSq2uJXgdNelyqBwd0aeRg2jj1HsRD", "Download data from Google Drive "))),
                                       tags$br(),
                                       tags$p("Temperatures dataset: - FLDAS_NOAH01_C_GL_M_v001 Model:",tags$strong(tags$a(href="https://www.amazon.es/clouddrive/share/PhEDZGXVqrLdbKWERxqoW6j971ka8HSlBcPz1k9OPJ2", "Download data from Amazon Drive "))),
+                                      tags$hr(),
+                                      tags$p("Soil moisture dataset - FLDAS_NOAH01_C_GL_M_v001 Model:",tags$strong(tags$a(href="https://drive.google.com/drive/folders/18eT3f8zwd2bcckINpBjJtcFpSHza45gc?usp=sharing"))),
                                       tags$hr(),
                                       textInput("Countries", "Please enter the ISO 3166 country code to download the file :","COL"), #Countrie codes
                                       selectInput("Level_", "Select Level", choices = c(0,1,2), selected = 2), #Level of administrative division
