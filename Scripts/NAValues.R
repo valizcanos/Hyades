@@ -15,7 +15,10 @@ SeparateDates = function(DataSet, DateColName){
 #ANÃLISIS POR CLUSTER
 
 SeparateByCluster = function(DataSet, NumberOfCluster){
-  DataSet = dplyr::filter(DataSet, cluster == NumberOfCluster) # Separar datos por cluster
+  if(NumberOfCluster == 0){
+    DataSet
+  }else{
+  DataSet = dplyr::filter(DataSet, cluster == NumberOfCluster) }# Separar datos por cluster
   return(DataSet)
 }
 

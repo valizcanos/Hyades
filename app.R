@@ -31,16 +31,17 @@ library(reshape) # To change the shape of my dataframe
 library(plotly) # To make plots
 library(factoextra) #Plot my cluster
 library(dplyr) # To manage my data
+library(lubridate)
 #library(googledrive)
 suppressPackageStartupMessages(library(h2o))
 h2o.init(nthreads = -1)
 #######################################################################################################################
-
+options(shiny.maxRequestSize=3000*1024^2)
 ############################################## GRAPHICAL UNIT INTERFACE ###############################################
 ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="display: block; margin-lef:20px; margin-top: -20px;"),
                 theme = shinytheme("paper"), 
                 ##### 1.0.A. DOWMNLOAD DATA FROM CHIPS 0.05 degree (6x6km) #####
-                tabPanel("GetRainfall", 
+                tabPanel("GetData", 
                          sidebarPanel(width=4, #Width of sidebar, Control Panel
                            tags$h4("Download CHIRPS"),
                            selectInput("Regions", "Select region:", choices= c("World"="global", "Central America and Caribean"="camer-carib", 
@@ -53,12 +54,13 @@ ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="d
                            dateInput("Date2", label = 'End Date: yyyy-mm-dd',value = Sys.Date()-1), #End date
                            actionButton("init", "Download"),
                            tags$p("Go to CHIRPS dataset: ",tags$strong(tags$a(href="ftp://ftp.chg.ucsb.edu/pub/org/chg/products/CHIRPS-2.0", "Here!"))),
+                           tags$p("To download the Global Temperature dataset: ",tags$strong(tags$a(href="https://drive.google.com/open?id=1m1NSq2uJXgdNelyqBwd0aeRg2jj1HsRD", "Go here! "))),
                            tags$br(),
                            tags$p("To extract .gz files from CHIRPS click on below button"), 
                            actionButton("Extract","Extract Files"), #Uncompress rasters
                            tags$br(),
                            tags$hr(),
-                           tags$h4("Cut CHIRPs"),
+                           tags$h4("Crop Image"),
                            textInput("Country", "Please enter the ISO 3166 country code to download the file :","COL"), #Countrie codes
                            selectInput("Level", "Select Level", choices = c(0,1,2), selected = 2), #Level of administrative division
                            tags$p("The level refers to administrative divisions. Level 2 is the most specific"),
@@ -85,43 +87,7 @@ ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="d
                            verbatimTextOutput("MaskLoadedInf") #Information of mask
                          ) #End of MainPanel 1.0.A
                          ),#End of TabPanel 1.0.A
-                ##### 1.0.B. DOWNLOAD TEMPERATURES (1km2) AND SOIL MOISTURE (1km2)#####
-                tabPanel("GetTempSoilM", 
-                         sidebarPanel(width=4, #Width of sidebar, Control Panel
-                                      tags$h4("Download Temperature and Soil Moisture dataset"),
-                                      tags$hr(),
-                                      tags$br(),
-                                      tags$p("Temperatures dataset - FLDAS_NOAH01_C_GL_M_v001 Model: ",tags$strong(tags$a(href="https://drive.google.com/open?id=1m1NSq2uJXgdNelyqBwd0aeRg2jj1HsRD", "Download data from Google Drive "))),
-                                      tags$br(),
-                                      tags$p("Temperatures dataset: - FLDAS_NOAH01_C_GL_M_v001 Model:",tags$strong(tags$a(href="https://www.amazon.es/clouddrive/share/PhEDZGXVqrLdbKWERxqoW6j971ka8HSlBcPz1k9OPJ2", "Download data from Amazon Drive "))),
-                                      tags$hr(),
-                                      tags$p("Soil moisture dataset - FLDAS_NOAH01_C_GL_M_v001 Model:",tags$strong(tags$a(href="https://drive.google.com/drive/folders/18eT3f8zwd2bcckINpBjJtcFpSHza45gc?usp=sharing"))),
-                                      tags$hr(),
-                                      textInput("Countries", "Please enter the ISO 3166 country code to download the file :","COL"), #Countrie codes
-                                      selectInput("Level_", "Select Level", choices = c(0,1,2), selected = 2), #Level of administrative division
-                                      tags$p("The level refers to administrative divisions. Level 2 is the most specific"),
-                                      actionButton("adquireSHP_", "Plot first Shp"), #Plot the first shape
-                                      actionButton("adquireDataSHP_", "Data Shape"), #Show the data of the first shape
-                                      tags$hr(),
-                                      tags$p("Do you want to select a territorial entity form the selected administrative division? Only applies to leves 1 and 2"),
-                                      textInput("Region_", "Type the territorial entity","Santiago de Cali"), #Input territorial entity
-                                      selectInput("subLevel_", "Select the level that corresponds to territorial entity", choices = c(1,2), selected = 2), #Select sublevel of administrative division
-                                      actionButton("adquireSHP2_", "Plot second Shp"), #Plot sublevel of administrative division
-                                      tags$hr(),
-                                      selectInput("SelectShape_T", "Do you want to use as Mask the:", choices = c("First Shape", "Second Shape", "My own mask"), selected = "Second Shape"), #Choose the level of mask
-                                      tags$hr(),
-                                      actionButton("Mascara_T", label = "Choose file as Mask"), #Select Mask
-                                      actionButton("cutRaster_", "Apply Cut") #Apply cut of raster
-                         ), #End of SideBarPanel 1.0.B
-                         mainPanel(#Outputs of the first tab (data from CHIRPS)
-                           tags$h3("ISO 3166 COUNTRY CODES"),
-                           DT::dataTableOutput("MyTableCountriesSHP"), #Table contries code
-                           plotOutput("PlotSHP_", width = "100%"), #Plot first shape
-                           DT::dataTableOutput("MyTableSHP_"), #Table of data shape
-                           plotOutput("PlotSHP2_", width = "100%"), #PLot the second shape
-                           verbatimTextOutput("MaskLoaded_") #Information of mask
-                         ) #End of MainPanel 1.0.B
-                ),#End of TabPanel 1.0.B
+
                 ##### 2.0. GET HEIGHTS AND DISPLAY AREA TO WORK #####
                 navbarMenu("Terrain", #Begin TabPanel 2.0
                            ##### 2.1. GET ELEVATIONS #####
@@ -155,7 +121,7 @@ ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="d
                                       tags$p("Select your raster"),
                                       fileInput("RasterCutted", "Add Raster", accept = ".tif"),
                                       tags$hr(),
-                                      tags$p("Download data for all raster cutted"),
+                                      tags$p("Download data for all raster cropped"),
                                       actionButton("DownloadData", "Download data"),
                                       progressBar(id="pb",value=0,title="", display_pct = TRUE)
                                     ),#End of SideBarPanel 2.2
@@ -206,7 +172,7 @@ ui = navbarPage(tags$img(src="icono6.png", height='65', align='center', style="d
                                       tags$br(),
                                       #clusters
                                       tags$p("Separate Dataset by Cluster"),
-                                      sliderInput("FilterByCluster","Filter by cluster", min = 1, max = 10, value = 2),
+                                      sliderInput("FilterByCluster","Filter by cluster", min = 0, max = 10, value = 0),
                                       textInput("NameOfYValue", "Enter the name of the variable to analyze", "Rainfall"),
                                       textInput("XLabel", "Enter the X Label", "X Label"),
                                       textInput("YLabel", "Enter the Y Label", "Y Label"),
@@ -471,92 +437,7 @@ server = function(input,output, session){
     }#End of for bucle
       })#end of BarProgress
   }) 
-  ##### 1.0.B. FUNCTIONS OF FIRST TAB -B #####
-  #--------------------------------------#
-  # Add a shapefile as mask
-  # Display countries code
-  DataCountriesSHP = reactive({
-    source("Scripts/LoadCutShapes.R")
-    TheCountries = CODES()
-  })
-  output$MyTableCountriesSHP = DT::renderDataTable({DataCountriesSHP()})
-  #--------------------------------------#
-  # To plot the first Shape
-  SHP_ = eventReactive(input$adquireSHP_,{
-    MyDirShape = choose.dir()
-    MyDirShape = gsub("\\","/", MyDirShape, fixed=TRUE)
-    source("Scripts/LoadCutShapes.R")
-    FirstMapAdquisition = FirstMap(CodC= input$Countries, LevelC= as.numeric(input$Level_), Ubicacion = paste(MyDirShape,"/",sep=""))
-  })
-  output$PlotSHP_ = renderPlot({plot(SHP_())})
-  #--------------------------------------#
-  # To display the first shape data
-  DataSHP_ = eventReactive(input$adquireDataSHP_,{
-    source("Scripts/LoadCutShapes.R")
-    FirstMapAdquisition = DataFirstMap(CodC= input$Countries, LevelC= as.numeric(input$Level_))
-  })
-  output$MyTableSHP_ = DT::renderDataTable({DataSHP_()})
-  #--------------------------------------#
-  # To plot the second Shape
-  SHP2_ = eventReactive(input$adquireSHP2_,{
-    source("Scripts/LoadCutShapes.R")
-    FirstMapAdquisition = SecondMap(CodC= input$Countries, LevelC= as.numeric(input$Level_),  LevelD = as.numeric(input$subLevel_) ,RegionD = input$Region_)
-  })
-  output$PlotSHP2_ = renderPlot({plot(SHP2_())})
-  #--------------------------------------#
-  #Apply cut to Raster
-  inFile_T = eventReactive(input$Mascara_T,{
-    if(input$SelectShape_T == "First Shape"){
-      ChoosedShape = readRDS(file.choose())
-    }
-    else if(input$SelectShape_T == "Second Shape"){
-      ChoosedShape = readRDS(file.choose())
-    }
-    else if (input$SelectShape_T == "My own mask"){
-      ChoosedShape = readOGR(file.choose())
-    }
-    else{ChoosedShape = "Not uploaded"}
-  })  
-  
-  output$MaskLoaded_ = renderPrint({
-    inFile_T()
-  })
-  
-  #--------------------------------------#
-  observeEvent(input$cutRaster_,{
-    RasterDir = choose.dir()
-    RasterFiles = list.files(RasterDir, pattern = "\\.tif$")
-    RasterFiles2 = paste(RasterDir,"\\",RasterFiles, sep="")
-    RasterFiles2 = gsub("\\","/", RasterFiles2, fixed=TRUE)
-    mask = inFile_T()
-    Seleccion = input$SelectShape_T
-    WrittenName = gsub("\\.tif$","_",RasterFiles2)
-    withProgress(message = "Cropping",value = 0,{ #Begin BarProgress
-      for(i in 1:length(RasterFiles2)){
-        if(Seleccion == "First Shape"){
-          writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask), filename = paste(WrittenName[i],"Cropped_T", i, ".tif" ,sep=""), overwrite=TRUE ) 
-          incProgress(1/length(RasterFiles2), detail = paste(i))
-          Sys.sleep(0.1)
-        }else if (paste(Seleccion) == "Second Shape"){
-          if(as.numeric(paste(input$subLevel_))==1){
-            writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_1 == paste(input$Region_),]), filename = paste(WrittenName[i],"Cropped_T", ".tif" ,sep=""),overwrite=TRUE)
-            incProgress(1/length(RasterFiles2), detail = paste(i))
-            Sys.sleep(0.1)
-          }#end of if 
-          else{
-            writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask[mask@data$NAME_2 == paste(input$Region_),]),filename = paste(WrittenName[i],"Cropped_T", ".tif" ,sep=""),overwrite=TRUE)
-            incProgress(1/length(RasterFiles2), detail = paste(i))
-            Sys.sleep(0.1)
-          }#end of else
-        }else{
-          writeRaster(raster::crop(raster(paste(RasterFiles2[i])), mask), filename = paste(WrittenName[i],"Cropped_T", ".tif" ,sep=""),overwrite=TRUE)
-          incProgress(1/length(RasterFiles2), detail = paste(i))
-          Sys.sleep(0.1)
-          
-        }#end of else	
-      }#End of for bucle
-    })#end of BarProgress
-  }) 
+
   ##### 2.0. FUNCTIONS OF SECOND TAB ######
   #--------------------------------------#
   ##### 2.1. FUNCTIONS OF SECOND TAB ######
@@ -698,7 +579,7 @@ server = function(input,output, session){
   # Download all raster data
   observeEvent(input$DownloadData,{
     DirDownload = choose.dir()
-    SetOfRasters = list.files(DirDownload, pattern = "_Cutted.tif$", full.names = TRUE)
+    SetOfRasters = list.files(DirDownload, pattern = "_Cropped.tif$", full.names = TRUE)
     StacksRaster = stack(SetOfRasters)
     if(is.null(MyRasterCutted())){
       return(NULL)
@@ -717,7 +598,7 @@ server = function(input,output, session){
     ElevacionesRequeridas = data.frame(ElevacionesRequeridas)
     colnames(ElevacionesRequeridas) = c("Heights")
     
-    Fechas = gsub(SetOfRasters, pattern = "_Cutted.tif$", replacement = "")
+    Fechas = gsub(SetOfRasters, pattern = "_Cropped.tif$", replacement = "")
     Fechas = substr(Fechas, nchar(Fechas)-9,nchar(Fechas))
     Fechas = rep(Fechas, length(values(StacksRaster[[1]])))
     Fechas = sort(Fechas, decreasing = FALSE)
@@ -740,7 +621,7 @@ server = function(input,output, session){
   DataForCluster = reactive({
     dflocation = input$DataCluster
     if(is.null(dflocation)){return(NULL)}
-    df = read.csv2(dflocation$datapath, header=TRUE) 
+    df = read.csv2(dflocation$datapath, header=TRUE, stringsAsFactors = FALSE) 
   }) 
   output$DataTableForCluster = DT::renderDataTable({
     DT::datatable(DataForCluster())
@@ -803,7 +684,7 @@ server = function(input,output, session){
     MyDataSet = input$UploadDataSet
     if(is.null(MyDataSet)){return(NULL)}
     MyDataSetPath = MyDataSet$datapath
-    Dataset = read.csv2(MyDataSetPath)
+    Dataset = read.csv2(MyDataSetPath,sep=";",dec=".",header=TRUE,stringsAsFactors = FALSE)
   })
   output$MyDataSetT = DT::renderDataTable({
     MyTableDataSet = FileDataSet()
@@ -836,7 +717,7 @@ server = function(input,output, session){
     MyFile2 = SeparateByCluster(MyFile, input$FilterByCluster)
   }) 
   output$ShowPlotsByCluster = renderPlot({
-    MyFile = missingValuesByCluster()
+    MyFile = missingValuesByCluster() #
     plot1 = ggplot(MyFile, aes(y = MyFile[,input$NameOfYValue], x=factor(0))) +
       geom_boxplot(notch=TRUE, width=0.2, fill=input$ColorPlot, alpha=input$AlphaPlot) + labs(y = input$YLabel) + theme(axis.title.x=element_blank(),
                                                                                              axis.text.x=element_blank(),
@@ -845,10 +726,10 @@ server = function(input,output, session){
     plot2 = data.frame(Information = c("Complete", "Missing"), Values =c(length(MyFile[,input$NameOfYValue]), length(which(is.na(MyFile[,input$NameOfYValue])))))
     Plot2 = ggplot(data=plot2, aes(x=Information, y= Values, fill=Information)) + geom_bar(stat="identity", position = position_dodge(), alpha=input$AlphaPlot) +
         geom_text(aes(label=Values), vjust=-0.3, size=3.5, position = position_dodge(0.9)) +
-        theme_minimal() + ylim(0, (plot2[1,2]+ plot2[2,2])*1.5) + scale_fill_manual(values=c(input$ColorPlot,"black"))+
+        theme_minimal() + ylim(0, (plot2[1,2]+ plot2[2,2])) + scale_fill_manual(values=c(input$ColorPlot,"black"))+
         labs(title= paste("Total records: ", plot2[1,2]+ plot2[2,2], sep=""), x="Data")
     StDv = sd(MyFile[,input$NameOfYValue], na.rm=TRUE)
-        plot3 =ggplot(MyFile, aes(x= MyFile[,input$NameOfDates], y = MyFile[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(min(MyFile[,input$NameOfYValue]), max(MyFile[,input$NameOfYValue])*1.5) +
+        plot3 =ggplot(MyFile, aes(x= MyFile[,input$NameOfDates], y = MyFile[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(min(MyFile[,input$NameOfYValue]), max(MyFile[,input$NameOfYValue])) +
       geom_line(color=input$ColorPlot, alpha=input$AlphaPlot) + geom_point(color=input$ColorPlot, alpha=input$AlphaPlot) + geom_errorbar(aes(ymin=MyFile[,input$NameOfYValue]-StDv, ymax= MyFile[,input$NameOfYValue]+StDv), width=.2, color=input$ColorPlot, alpha=input$AlphaPlot)
     plot4 = ggplot(MyFile, aes(x=MyFile[,input$NameOfYValue])) +  geom_density(alpha=input$AlphaPlot) + geom_histogram(aes(y=..density..),binwidth = 5, fill=input$ColorPlot, alpha=input$AlphaPlot)+
       geom_vline(aes(xintercept=mean(MyFile[,input$NameOfYValue])),linetype="dashed") +
@@ -867,10 +748,10 @@ server = function(input,output, session){
     plot2 = data.frame(Information = c("Complete", "Missing"), Values =c(length(MyFile[,input$NameOfYValue]), length(na.omit(MyFile[,input$NameOfYValue]))-length(MyFile[,input$NameOfYValue])))
     Plot2 = ggplot(data=plot2, aes(x=Information, y= Values, fill=Information)) + geom_bar(stat="identity", alpha=input$AlphaPlot, position = position_dodge()) +
       geom_text(aes(label=Values), vjust=-0.3, size=3.5, position = position_dodge(0.9)) +
-      theme_minimal() + ylim(0, (plot2[1,2]+ plot2[2,2])*1.5) + scale_fill_manual(values=c(input$ColorPlot,"black"))+
+      theme_minimal() + ylim(0, (plot2[1,2]+ plot2[2,2])) + scale_fill_manual(values=c(input$ColorPlot,"black"))+
       labs(title= paste("Total records: ", plot2[1,2]+ plot2[2,2], sep=""), x="Data")
     StDv = sd(MyFile[,input$NameOfYValue], na.rm=TRUE)
-    plot3 =ggplot(MyFile, aes(x= MyFile[,input$NameOfDates], y = MyFile[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(min(MyFile[,input$NameOfYValue]), max(MyFile[,input$NameOfYValue])*1.5) +
+    plot3 =ggplot(MyFile, aes(x= MyFile[,input$NameOfDates], y = MyFile[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(min(MyFile[,input$NameOfYValue]), max(MyFile[,input$NameOfYValue])) +
       geom_line(color=input$ColorPlot) + geom_point(color=input$ColorPlot) + geom_errorbar(aes(ymin=MyFile[,input$NameOfYValue]-StDv, ymax= MyFile[,input$NameOfYValue]+StDv), width=.2, color=input$ColorPlot)
     plot4 = ggplot(MyFile, aes(x=MyFile[,input$NameOfYValue])) +  geom_histogram(stat = "bin", bins= NULL, binwidth= NULL,aes(bins = 30, y=..density..), fill=input$ColorPlot)+
       geom_density(alpha=input$AlphaPlot) + geom_vline(aes(xintercept=mean(MyFile[,input$NameOfYValue])),linetype="dashed") +
@@ -924,7 +805,7 @@ server = function(input,output, session){
                                                                                                                                         axis.text.x=element_blank(),
                                                                                                                                         axis.ticks.x=element_blank())
      if(input$ext == ".png"){ggsave(paste(SelectDirPlot2,"\\", "BoxplotGruppedByQuarter.png", sep=""))}
-     else{ggsave(paste(SelectDirPlot1,"\\", "BoxplotGruppedByQuarter.svg", sep=""))}
+     else{ggsave(paste(SelectDirPlot2,"\\", "BoxplotGruppedByQuarter.svg", sep=""))}
    })
   #--------------------------------------#
   #Filter Values by Season Upload Barplots
@@ -939,7 +820,7 @@ server = function(input,output, session){
      plot2 = data.frame(Information = rep(c("Complete", "Missing"),4), Values =c(length(MyFile1[!is.na(MyFile1)]), length(MyFile1[is.na(MyFile1)]), length(MyFile2[!is.na(MyFile2)]), length(MyFile2[is.na(MyFile2)]), length(MyFile3[!is.na(MyFile3)]), length(MyFile3[is.na(MyFile3)]), length(MyFile4[!is.na(MyFile4)]), length(MyFile4[is.na(MyFile4)])), Seasons = c("Season1","Season1","Season 2", "Season 2", "Season 3", "Season 3", "Season 4", "Season 4") )
      Plot2 = ggplot(data=plot2, aes(x=Seasons, y= Values, fill= Information)) + geom_bar(stat="identity" , position=position_dodge(), alpha=input$AlphaPlot) +
        geom_text(aes(label=Values), vjust=-0.3, size=3.5, position = position_dodge(0.9)) +
-       ylim(0, (plot2[1,2]+ plot2[2,2])*1.5) +
+       ylim(0, (plot2[1,2]+ plot2[2,2])) +
        labs(title= paste("Total records: ", sum(plot2[,2]), sep=""), x="Data") + scale_fill_manual(values = c(input$ColorPlot, "black"))
    })
    output$BarplotByQuarterP = renderPlot({
@@ -959,7 +840,7 @@ server = function(input,output, session){
      plot2 = data.frame(Information = rep(c("Complete", "Missing"),4), Values =c(length(MyFile1[!is.na(MyFile1)]), length(MyFile1[is.na(MyFile1)]), length(MyFile2[!is.na(MyFile2)]), length(MyFile2[is.na(MyFile2)]), length(MyFile3[!is.na(MyFile3)]), length(MyFile3[is.na(MyFile3)]), length(MyFile4[!is.na(MyFile4)]), length(MyFile4[is.na(MyFile4)])), Seasons = c("Season1","Season1","Season 2", "Season 2", "Season 3", "Season 3", "Season 4", "Season 4") )
      Plot2 = ggplot(data=plot2, aes(x=Seasons, y= Values, fill= Information)) + geom_bar(stat="identity", position=position_dodge(), alpha=input$AlphaPlot) +
        geom_text(aes(label=Values), vjust=-0.3, size=3.5, position = position_dodge(0.9)) +
-       ylim(0, (plot2[1,2]+ plot2[2,2])*1.5) +
+       ylim(0, (plot2[1,2]+ plot2[2,2])) +
        labs(title= paste("Total records: ", sum(plot2[,2]), sep=""), x="Data")+ scale_fill_manual(values = c(input$ColorPlot, "black"))                                                              
                                                                                                                                         
      if(input$ext == ".png"){ggsave(paste(SelectDirPlot2,"\\", "BarplotGruppedByQuarter.png", sep=""))}
@@ -980,13 +861,13 @@ server = function(input,output, session){
      StDv2 = sd(MyFile2[,input$NameOfYValue], na.rm=TRUE)
      StDv3 = sd(MyFile3[,input$NameOfYValue], na.rm=TRUE)
      StDv4 = sd(MyFile4[,input$NameOfYValue], na.rm=TRUE)
-     plot31 =ggplot(MyFile1, aes(x= MyFile1[,input$NameOfDates], y = MyFile1[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi*1.5) + ggtitle("Season 1") +
+     plot31 =ggplot(MyFile1, aes(x= MyFile1[,input$NameOfDates], y = MyFile1[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi) + ggtitle("Season 1") +
        geom_line(color=input$ColorPlot,alpha=input$AlphaPlot)+ geom_point(color=input$ColorPlot,alpha=input$AlphaPlot) + geom_errorbar(aes(ymin=MyFile1[,input$NameOfYValue]-StDv1, ymax= MyFile1[,input$NameOfYValue]+StDv1), width=.2, color=input$ColorPlot,alpha=input$AlphaPlot) 
-     plot32 =ggplot(MyFile2, aes(x= MyFile2[,input$NameOfDates], y = MyFile2[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi*1.5) + ggtitle("Season 2") +
+     plot32 =ggplot(MyFile2, aes(x= MyFile2[,input$NameOfDates], y = MyFile2[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi) + ggtitle("Season 2") +
        geom_line(color=input$ColorPlot,alpha=input$AlphaPlot)+ geom_point(color=input$ColorPlot,alpha=input$AlphaPlot) + geom_errorbar(aes(ymin=MyFile2[,input$NameOfYValue]-StDv2, ymax= MyFile2[,input$NameOfYValue]+StDv2), width=.2, color=input$ColorPlot,alpha=input$AlphaPlot) 
-     plot33 =ggplot(MyFile3, aes(x= MyFile3[,input$NameOfDates], y = MyFile3[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi*1.5) + ggtitle("Season 3") +
+     plot33 =ggplot(MyFile3, aes(x= MyFile3[,input$NameOfDates], y = MyFile3[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi) + ggtitle("Season 3") +
        geom_line(color=input$ColorPlot,alpha=input$AlphaPlot)+ geom_point(color=input$ColorPlot,alpha=input$AlphaPlot) + geom_errorbar(aes(ymin=MyFile3[,input$NameOfYValue]-StDv3, ymax= MyFile3[,input$NameOfYValue]+StDv3), width=.2, color=input$ColorPlot,alpha=input$AlphaPlot) 
-     plot34 =ggplot(MyFile4, aes(x= MyFile4[,input$NameOfDates], y = MyFile4[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi*1.5) + ggtitle("Season 4") +
+     plot34 =ggplot(MyFile4, aes(x= MyFile4[,input$NameOfDates], y = MyFile4[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi) + ggtitle("Season 4") +
        geom_line(color=input$ColorPlot,alpha=input$AlphaPlot)+ geom_point(color=input$ColorPlot,alpha=input$AlphaPlot) + geom_errorbar(aes(ymin=MyFile4[,input$NameOfYValue]-StDv4, ymax= MyFile4[,input$NameOfYValue]+StDv4), width=.2, color=input$ColorPlot,alpha=input$AlphaPlot) 
      plot3 = ggpubr::ggarrange(plot31, plot32, plot33, plot34, labels = c("A", "B", "C", "D"), ncol = 2, nrow = 2, align = "hv")
    })
@@ -1009,13 +890,13 @@ server = function(input,output, session){
      StDv2 = sd(MyFile2[,input$NameOfYValue], na.rm=TRUE)
      StDv3 = sd(MyFile3[,input$NameOfYValue], na.rm=TRUE)
      StDv4 = sd(MyFile4[,input$NameOfYValue], na.rm=TRUE)
-     plot31 =ggplot(MyFile1, aes(x= MyFile1[,input$NameOfDates], y = MyFile1[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi*1.5) + ggtitle("Season 1") +
+     plot31 =ggplot(MyFile1, aes(x= MyFile1[,input$NameOfDates], y = MyFile1[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi) + ggtitle("Season 1") +
        geom_line(color=input$ColorPlot,alpha=input$AlphaPlot)+ geom_point(color=input$ColorPlot,alpha=input$AlphaPlot) + geom_errorbar(aes(ymin=MyFile1[,input$NameOfYValue]-StDv1, ymax= MyFile1[,input$NameOfYValue]+StDv1), width=.2, color=input$ColorPlot,alpha=input$AlphaPlot) 
-     plot32 =ggplot(MyFile2, aes(x= MyFile2[,input$NameOfDates], y = MyFile2[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi*1.5) + ggtitle("Season 2") +
+     plot32 =ggplot(MyFile2, aes(x= MyFile2[,input$NameOfDates], y = MyFile2[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi) + ggtitle("Season 2") +
        geom_line(color=input$ColorPlot,alpha=input$AlphaPlot)+ geom_point(color=input$ColorPlot,alpha=input$AlphaPlot) + geom_errorbar(aes(ymin=MyFile2[,input$NameOfYValue]-StDv2, ymax= MyFile2[,input$NameOfYValue]+StDv2), width=.2, color=input$ColorPlot,alpha=input$AlphaPlot) 
-     plot33 =ggplot(MyFile3, aes(x= MyFile3[,input$NameOfDates], y = MyFile3[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi*1.5) + ggtitle("Season 3") +
+     plot33 =ggplot(MyFile3, aes(x= MyFile3[,input$NameOfDates], y = MyFile3[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi) + ggtitle("Season 3") +
        geom_line(color=input$ColorPlot,alpha=input$AlphaPlot)+ geom_point(color=input$ColorPlot,alpha=input$AlphaPlot) + geom_errorbar(aes(ymin=MyFile3[,input$NameOfYValue]-StDv3, ymax= MyFile3[,input$NameOfYValue]+StDv3), width=.2, color=input$ColorPlot,alpha=input$AlphaPlot) 
-     plot34 =ggplot(MyFile4, aes(x= MyFile4[,input$NameOfDates], y = MyFile4[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi*1.5) + ggtitle("Season 4") +
+     plot34 =ggplot(MyFile4, aes(x= MyFile4[,input$NameOfDates], y = MyFile4[,input$NameOfYValue])) + labs(x= input$XLabel, y= input$YLabel)+ ylim(Mini, Maxi) + ggtitle("Season 4") +
        geom_line(color=input$ColorPlot,alpha=input$AlphaPlot)+ geom_point(color=input$ColorPlot,alpha=input$AlphaPlot) + geom_errorbar(aes(ymin=MyFile4[,input$NameOfYValue]-StDv4, ymax= MyFile4[,input$NameOfYValue]+StDv4), width=.2, color=input$ColorPlot,alpha=input$AlphaPlot) 
      plot3 = ggpubr::ggarrange(plot31, plot32, plot33, plot34, labels = c("A", "B", "C", "D"), ncol = 2, nrow = 2, align = "hv")
      
@@ -1113,7 +994,7 @@ server = function(input,output, session){
      #, fill= Information
      Plot2 = ggplot(data=plot2, aes(x=factor(Months), y= Values, fill= Information)) + geom_bar(stat="identity", position=position_dodge(), alpha=input$AlphaPlot) +
        geom_text(aes(label=Values), vjust=-0.3, size=3.5, position=position_dodge(0.9)) +
-       ylim(0, max(MD[,1])*1.5) + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
+       ylim(0, max(MD[,1])) + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
        labs(title= paste("Total records: ", sum(MD[,1])+sum(MD[,2]), sep=""), x="Data") + scale_fill_manual(values=c(input$ColorPlot,"black"))
      Plot2
    })
@@ -1143,7 +1024,7 @@ server = function(input,output, session){
      #, fill= Information
      Plot2 = ggplot(data=plot2, aes(x=Months, y= Values, fill= Information)) + geom_bar(stat="identity", position=position_dodge(), alpha=input$AlphaPlot) +
        geom_text(aes(label=Values), vjust=-0.3, size=3.5, position=position_dodge(0.9)) +
-       ylim(0, max(plot2[,2])*1.5) + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
+       ylim(0, max(plot2[,2])) + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))+
        labs(title= paste("Total records: ", sum(plot2[,2]), sep=""), x="Data") + scale_fill_manual(values=c(input$ColorPlot,"black"))
      Plot2
      
@@ -1399,7 +1280,7 @@ server = function(input,output, session){
    })
    
    
-} #close server
+   } #close server
 #######################################################################################################################
 shinyApp(ui=ui, server=server)
 
