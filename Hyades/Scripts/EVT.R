@@ -108,7 +108,7 @@ EVIMin = function(DataM,Alpha,U_){
 }
 
 EVI_RP = function(EVI){
-  idx = which(EVI[["yt"]]>=0)
+  idx = which(EVI[["yt"]]>=-10)#By defaukt gt 0
   EVI = EVI[c(idx),]
   EVI[["PR"]] = 1/(1-exp(-exp(-EVI[["yt"]])))
   return(EVI)

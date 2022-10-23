@@ -1,5 +1,5 @@
 library(dplyr)
-library(tidyverse)
+#library(tidyverse)
 library(lubridate)
 library(ggplot2)
 
@@ -12,7 +12,7 @@ SeparateDates = function(DataSet, DateColName){
   return(DataSet)
 }
 #################################################################################################
-#ANÃLISIS POR CLUSTER
+#AN?LISIS POR CLUSTER
 
 SeparateByCluster = function(DataSet, NumberOfCluster){
   if(NumberOfCluster == 0){
@@ -23,7 +23,7 @@ SeparateByCluster = function(DataSet, NumberOfCluster){
 }
 
 #################################################################################################
-#ANÃLISIS POR ESTACION
+#AN?LISIS POR ESTACION
 
 SeparatedBySeason = function(DataSet, Season1, Season2, Season3, Season4){
   SM1 = switch(paste(Season1[1]), "January"=1, "February"=2, "March"=3, "April"=4, "May"=5, "June"=6, "July"=7, "August"=8, "September"=9, "Octuber"=10, "November"=11, "December"=12)
@@ -47,7 +47,7 @@ SeparatedBySeason = function(DataSet, Season1, Season2, Season3, Season4){
 }
 
 #################################################################################################
-#ANÃLISIS POR MES
+#AN?LISIS POR MES
 SeparatedByMonth = function(DataSet){
   January = dplyr::filter(DataSet, Months==1)
   February = dplyr::filter(DataSet, Months==2)

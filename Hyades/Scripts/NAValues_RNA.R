@@ -15,9 +15,9 @@ SepararDates = function(DATOS, ColFecha){
   DATOS[[ColFecha]] = as.Date(DATOS[[ColFecha]], "%Y-%m-%d")
   DATOS["Days"] = substr(DATOS[[ColFecha]],9,10)
   DATOS["Days"] = as.numeric(DATOS[["Days"]])
-  DATOS["Months"] = substr(Datos[[ColFecha]],6,7)
+  DATOS["Months"] = substr(DATOS[[ColFecha]],6,7)
   DATOS["Months"] = as.numeric(DATOS[["Months"]])
-  DATOS["Years"] = substr(Datos[[ColFecha]],1,4)
+  DATOS["Years"] = substr(DATOS[[ColFecha]],1,4)
   DATOS["Years"] = as.numeric(DATOS[["Years"]])
   DATOS["MonthsN"] = as.character(DATOS[["Months"]])
   for(i in 1:12){

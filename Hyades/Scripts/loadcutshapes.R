@@ -57,6 +57,7 @@ return(CountriesCode)
 
 FirstMap = function(CodC, LevelC, Ubicacion){
   #ISO3166-1
+  
   mapOne = GADMTools::gadm_sp_loadCountries(CodC, level=LevelC, basefile = Ubicacion)
   GADMTools::gadm_plot(mapOne)
 }
